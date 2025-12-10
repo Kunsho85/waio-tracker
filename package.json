@@ -1,0 +1,27 @@
+{
+    "name": "waio-crawler-tracker",
+    "version": "1.1.0",
+    "module": "src/index.tsx",
+    "type": "module",
+    "scripts": {
+        "dev": "bun run src/index.tsx",
+        "build": "bun build src/index.tsx --outdir dist --minify",
+        "test": "bun test"
+    },
+    "dependencies": {
+        "axios": "^1.6.0",
+        "chart.js": "^4.4.0",
+        "react": "^18.2.0",
+        "react-chartjs-2": "^5.3.1",
+        "react-dom": "^18.2.0",
+        "react-router-dom": "^6.22.0",
+        "recharts": "^2.12.0",
+        "zustand": "^4.5.0"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.0",
+        "@types/react-dom": "^18.2.0",
+        "@types/bun": "latest",
+        "playwright": "latest"
+    }
+}
