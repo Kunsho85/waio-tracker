@@ -18,6 +18,9 @@ export const Dashboard = () => {
             }
         };
 
+        ws.onopen = () => console.log('Connected to real-time stream');
+        ws.onerror = (error) => console.error('WebSocket error:', error);
+
         return () => ws.close();
     }, []);
 

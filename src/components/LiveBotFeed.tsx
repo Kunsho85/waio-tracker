@@ -20,7 +20,8 @@ export const LiveBotFeed = () => {
             .catch(err => console.error('Failed to load visits:', err));
 
         // Connect to WebSocket for real-time updates
-        const ws = new WebSocket(`ws://${window.location.host}/api/stream`);
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}/api/stream`);
         
         ws.onmessage = (event) => {
             const message = JSON.parse(event.data);

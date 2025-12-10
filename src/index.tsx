@@ -188,7 +188,8 @@ const server = Bun.serve({
         <script type="module" src="/client.js"></script>
         <script>
             // Simple WS client to test connection
-            const ws = new WebSocket("ws://" + window.location.host + "/api/stream");
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(protocol + "//" + window.location.host + "/api/stream");
             ws.onmessage = (event) => console.log("WS Data:", JSON.parse(event.data));
             ws.onopen = () => console.log("Connected to Real-time Stream");
         </script>
