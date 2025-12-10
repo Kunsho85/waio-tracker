@@ -2,34 +2,36 @@ import { CrawlerDetector } from "./utils/crawler-detector";
 import { HtmlGenerator } from "./generators/html-generator";
 import { CrawlerSimulator } from "./simulation/crawler-simulator";
 import { ReportGenerator } from "./reporting/report-generator";
+import { SQLiteStore } from "./db/sqlite-store";
 import type { Server, ServerWebSocket } from "bun";
 
-// Simple in-memory set for connected websocket clients
+// Initialize services
 const connectedClients = new Set<any>();
 const crawlerDetector = new CrawlerDetector();
 const htmlGenerator = new HtmlGenerator();
 const crawlerSimulator = new CrawlerSimulator();
 const reportGenerator = new ReportGenerator();
+const db = new SQLiteStore();
 
-// In-memory visit log for reporting (since we are local-only without DB)
-const visitHistory: any[] = [];
-
-// Mock saving to Redis -> In-memory
+// Log visit to database and broadcast to WebSocket clients
 const logVisit = async (path: string, userAgent: string, ip: string, crawlerInfo: any) => {
   const logData = {
     timestamp: new Date().toISOString(),
-    path,
+    url: path,
     userAgent,
     ip,
-    ...crawlerInfo
+    botName: crawlerInfo.crawlerName,
+    botType: crawlerInfo.type,
+    botCompany: crawlerInfo.company
   };
+  
+  // 1. Save to database
+  db.logVisit(logData);
 
-  visitHistory.push(logData); // Store for report
-
-  // 1. Log to console
+  // 2. Log to console
   console.log("Visit:", JSON.stringify(logData));
 
-  // 2. Broadcast to WebSockets
+  // 3. Broadcast to WebSockets
   const message = JSON.stringify({ type: 'VISIT_UPDATE', data: logData });
   for (const client of connectedClients) {
     try {
@@ -106,8 +108,28 @@ const server = Bun.serve({
 
     // 1.6 Report Endpoint
     if (url.pathname === "/api/report") {
-      const report = reportGenerator.generateTextReport(visitHistory);
-      return addSecurityHeaders(new Response(report, { headers: { "Content-Type": "text/plain" } }));
+        const visits = db.getRecentVisits(100);
+        const report = reportGenerator.generateTextReport(visits);
+        return addSecurityHeaders(new Response(report, { headers: { "Content-Type": "text/plain" } }));
+    }
+
+    // 1.7 Recent Visits API
+    if (url.pathname === "/api/visits/recent") {
+        const visits = db.getRecentVisits(10);
+        return addSecurityHeaders(new Response(JSON.stringify(visits), { 
+            headers: { "Content-Type": "application/json" } 
+        }));
+    }
+
+    // 1.8 Bot Statistics API
+    if (url.pathname === "/api/stats/bots") {
+        const byType = db.getVisitsByType();
+        const byBot = db.getVisitsByBot();
+        const total = db.getTotalVisits();
+        
+        return addSecurityHeaders(new Response(JSON.stringify({ byType, byBot, total }), { 
+            headers: { "Content-Type": "application/json" } 
+        }));
     }
 
     // 2. Serve built client bundle

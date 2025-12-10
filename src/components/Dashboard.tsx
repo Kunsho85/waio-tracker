@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { VisitChart } from './charts/VisitChart';
 import { StatsCard } from './StatsCard';
+import { VisitChart } from './charts/VisitChart';
 import { UrlTester } from './UrlTester';
+import { LiveBotFeed } from './LiveBotFeed';
 
 export const Dashboard = () => {
-    const [lastVisit, setLastVisit] = useState<any>(null);
     const [visitCount, setVisitCount] = useState(0);
 
     useEffect(() => {
@@ -14,7 +14,6 @@ export const Dashboard = () => {
         ws.onmessage = (event) => {
             const msg = JSON.parse(event.data);
             if (msg.type === 'VISIT_UPDATE') {
-                setLastVisit(msg.data);
                 setVisitCount(prev => prev + 1);
             }
         };
@@ -47,7 +46,10 @@ export const Dashboard = () => {
                 <StatsCard title="Total Visits" value={1254 + visitCount} description="+12% from last week" />
                 <StatsCard title="Active Crawlers" value="5" description="Googlebot, GPTBot active" />
                 <StatsCard title="Avg Response" value="45ms" description="Optimized by Bun" />
-                <StatsCard title="Last Visit" value={lastVisit ? lastVisit.crawlerName : '-'} description={lastVisit ? 'Just now' : 'Waiting...'} />
+            </div>
+
+            <div style={{ marginBottom: '30px' }}>
+                <LiveBotFeed />
             </div>
 
             <div style={{
