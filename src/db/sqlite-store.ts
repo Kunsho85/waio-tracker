@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { Database } from 'bun:sqlite';
 import path from 'path';
 
 export interface Visit {
@@ -14,7 +14,7 @@ export interface Visit {
 }
 
 export class SQLiteStore {
-    private db: Database.Database;
+    private db: Database;
 
     constructor(dbPath: string = './data/waio.db') {
         // Ensure data directory exists
@@ -30,7 +30,7 @@ export class SQLiteStore {
     }
 
     private initTables() {
-        this.db.exec(`
+        this.db.run(`
             CREATE TABLE IF NOT EXISTS visits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
