@@ -94,7 +94,7 @@ const server = Bun.serve({
       return addSecurityHeaders(new Response("WebSocket upgrade failed", { status: 400 }));
     }
 
-    // 1.5 Simulation Endpoint
+    // 1.5 Simulate Crawler
     if (url.pathname === "/api/simulate" && req.method === "POST") {
       try {
         const body = await req.json() as { targetUrl: string, agent?: 'Googlebot' | 'GPTBot' | 'Bingbot' | 'Mobile' };
@@ -102,13 +102,35 @@ const server = Bun.serve({
 
         if (!targetUrl) return addSecurityHeaders(new Response("Missing targetUrl", { status: 400 }));
 
-        console.log(`Starting simulation: ${agent} -> ${targetUrl}`);
+        console.log(`[WAIO] Starting simulation: ${agent} → ${targetUrl}`);
         const result = await crawlerSimulator.simulateVisit(targetUrl, agent || 'Googlebot');
+
+        // Log the test to database
+        const userAgent = agent === 'GPTBot' ? 'Mozilla/5.0 (compatible; GPTBot/1.0)' :
+                         agent === 'Googlebot' ? 'Mozilla/5.0 (compatible; Googlebot/2.1)' :
+                         agent === 'Bingbot' ? 'Mozilla/5.0 (compatible; Bingbot/2.0)' :
+                         'Mozilla/5.0 (Mobile)';
+        
+        const crawlerInfo = crawlerDetector.identify(userAgent);
+        
+        db.logVisit({
+          timestamp: new Date().toISOString(),
+          botName: crawlerInfo.crawlerName,
+          botType: crawlerInfo.type,
+          botCompany: crawlerInfo.company,
+          url: targetUrl,
+          userAgent: userAgent,
+          ip: 'simulation',
+          responseTime: result.loadTime
+        });
+        
+        console.log(`[WAIO] ✅ Logged test to database: ${crawlerInfo.crawlerName} → ${targetUrl}`);
 
         return addSecurityHeaders(new Response(JSON.stringify(result), {
           headers: { "Content-Type": "application/json" }
         }));
       } catch (e: any) {
+        console.error('[WAIO] Simulation error:', e);
         return addSecurityHeaders(new Response(JSON.stringify({ error: String(e) }), { status: 500 }));
       }
     }
