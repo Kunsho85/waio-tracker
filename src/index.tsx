@@ -3,6 +3,7 @@ import { HtmlGenerator } from "./generators/html-generator";
 import { CrawlerSimulator } from "./simulation/crawler-simulator";
 import { ReportGenerator } from "./reporting/report-generator";
 import { SQLiteStore } from "./db/sqlite-store";
+import { seedDatabase } from "./db/seed";
 import type { Server, ServerWebSocket } from "bun";
 
 // Initialize services
@@ -12,6 +13,12 @@ const htmlGenerator = new HtmlGenerator();
 const crawlerSimulator = new CrawlerSimulator();
 const reportGenerator = new ReportGenerator();
 const db = new SQLiteStore();
+
+// Seed database with sample data if empty
+if (db.getTotalVisits() === 0) {
+    console.log('[WAIO] Database is empty, seeding with sample data...');
+    seedDatabase(db);
+}
 
 // Log visit to database and broadcast to WebSocket clients
 const logVisit = async (path: string, userAgent: string, ip: string, crawlerInfo: any) => {
