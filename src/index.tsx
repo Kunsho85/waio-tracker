@@ -139,21 +139,56 @@ const server = Bun.serve({
         }));
     }
 
-    // 1.9 Dashboard Stats API (Real Data)
+    // 1.9 Dashboard Stats API (Real Data with optional URL filter)
     if (url.pathname === "/api/stats/dashboard") {
         try {
-            const totalVisits = db.getTotalVisits();
-            const uniqueIPs = db.getUniqueIPs();
-            const avgResponseTime = db.getAverageResponseTime();
-            const last24h = db.getLast24HoursCount();
+            const filterUrl = url.searchParams.get('url');
             
-            // Bot type counts
-            const llmBots = db.getBotTypeCount('llm');
-            const searchBots = db.getBotTypeCount('search_engine');
-            const socialBots = db.getBotTypeCount('social');
+            let totalVisits, uniqueIPs, avgResponseTime, last24h, llmBots, searchBots, socialBots;
+            let visitTrend, topBots, recentVisits;
+            
+            if (filterUrl) {
+                // URL-filtered stats
+                const urlStats = db.getUrlStats(filterUrl);
+                totalVisits = urlStats.totalVisits;
+                uniqueIPs = new Set(db.getVisitsByUrl(filterUrl).map(v => v.ip)).size;
+                
+                const urlVisits = db.getVisitsByUrl(filterUrl);
+                const responseTimes = urlVisits.filter(v => v.responseTime).map(v => v.responseTime!);
+                avgResponseTime = responseTimes.length > 0 
+                    ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
+                    : 0;
+                
+                // Count visits in last 24h for this URL
+                const now = new Date();
+                const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                last24h = urlVisits.filter(v => new Date(v.timestamp) > yesterday).length;
+                
+                // Bot type counts for this URL
+                llmBots = db.getUrlBotTypeCount(filterUrl, 'llm');
+                searchBots = db.getUrlBotTypeCount(filterUrl, 'search_engine');
+                socialBots = db.getUrlBotTypeCount(filterUrl, 'social');
+                
+                visitTrend = db.getUrlTrend(filterUrl, 7);
+                topBots = urlStats.botBreakdown;
+                recentVisits = urlVisits.slice(0, 24 * 7); // Last week
+            } else {
+                // All visits stats (existing logic)
+                totalVisits = db.getTotalVisits();
+                uniqueIPs = db.getUniqueIPs();
+                avgResponseTime = db.getAverageResponseTime();
+                last24h = db.getLast24HoursCount();
+                
+                llmBots = db.getBotTypeCount('llm');
+                searchBots = db.getBotTypeCount('search_engine');
+                socialBots = db.getBotTypeCount('social');
+                
+                visitTrend = db.getVisitTrend(7);
+                topBots = db.getTopBots(1);
+                recentVisits = db.getVisitsLast24Hours();
+            }
             
             // Calculate trend
-            const visitTrend = db.getVisitTrend(7);
             let trendPercentage = 0;
             if (visitTrend.length >= 2) {
                 const today = visitTrend[visitTrend.length - 1]?.visits || 0;
@@ -162,12 +197,14 @@ const server = Bun.serve({
             }
             
             // Top bot
-            const topBots = db.getTopBots(1);
-            const topBot = topBots[0]?.botName || 'None';
+            const topBot = Array.isArray(topBots) && topBots.length > 0 
+                ? topBots[0].botName
+                : 'None';
             
-            // Active bots (unique bots in last 24h)
-            const recentVisits = db.getVisitsLast24Hours();
-            const uniqueBots = new Set(recentVisits.map(v => v.botName)).size;
+            // Active bots (unique bots)
+            const uniqueBots = filterUrl 
+                ? new Set(db.getVisitsByUrl(filterUrl).map(v => v.botName)).size
+                : new Set(recentVisits.map(v => v.botName)).size;
             
             const stats = {
                 totalVisits,
@@ -179,7 +216,8 @@ const server = Bun.serve({
                 socialBots,
                 last24h,
                 trend: trendPercentage > 0 ? `+${trendPercentage}%` : `${trendPercentage}%`,
-                topBot
+                topBot,
+                filteredUrl: filterUrl || null
             };
             
             return addSecurityHeaders(new Response(JSON.stringify(stats), { 

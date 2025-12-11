@@ -15,31 +15,37 @@ interface DashboardStats {
     last24h: number;
     trend: string;
     topBot: string;
+    filteredUrl?: string | null;
 }
 
 export const Dashboard = () => {
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loading, setLoading] = useState(true);
+    const [filterUrl, setFilterUrl] = useState('');
+    const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
     // Fetch real stats from API
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const response = await fetch('/api/stats/dashboard');
-                const data = await response.json();
-                setStats(data);
-                setLoading(false);
-            } catch (error) {
-                console.error('Failed to fetch stats:', error);
-                setLoading(false);
-            }
-        };
+    const fetchStats = async (url?: string) => {
+        try {
+            const endpoint = url 
+                ? `/api/stats/dashboard?url=${encodeURIComponent(url)}`
+                : '/api/stats/dashboard';
+            const response = await fetch(endpoint);
+            const data = await response.json();
+            setStats(data);
+            setLoading(false);
+        } catch (error) {
+            console.error('Failed to fetch stats:', error);
+            setLoading(false);
+        }
+    };
 
-        fetchStats();
+    useEffect(() => {
+        fetchStats(activeFilter || undefined);
         // Refresh stats every 30 seconds
-        const interval = setInterval(fetchStats, 30000);
+        const interval = setInterval(() => fetchStats(activeFilter || undefined), 30000);
         return () => clearInterval(interval);
-    }, []);
+    }, [activeFilter]);
 
     // WebSocket for real-time updates
     useEffect(() => {
@@ -60,6 +66,22 @@ export const Dashboard = () => {
         return () => ws.close();
     }, [stats]);
 
+    const applyFilter = () => {
+        if (filterUrl.trim()) {
+            setActiveFilter(filterUrl.trim());
+        }
+    };
+
+    const clearFilter = () => {
+        setFilterUrl('');
+        setActiveFilter(null);
+    };
+
+    const handleUrlTested = (url: string) => {
+        setFilterUrl(url);
+        setActiveFilter(url);
+    };
+
     if (loading) {
         return (
             <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -78,7 +100,7 @@ export const Dashboard = () => {
 
     return (
         <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h1 style={{ margin: 0 }}>WAIO Analytics Dashboard</h1>
                 <a
                     href="/api/report"
@@ -96,6 +118,85 @@ export const Dashboard = () => {
                     View Daily Report 📄
                 </a>
             </div>
+
+            {/* URL Filter */}
+            <div style={{
+                background: 'white',
+                padding: '16px',
+                borderRadius: '12px',
+                marginBottom: '20px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'center'
+            }}>
+                <input
+                    type="text"
+                    placeholder="Filter by URL (e.g., https://example.com or example.com)"
+                    value={filterUrl}
+                    onChange={(e) => setFilterUrl(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && applyFilter()}
+                    style={{
+                        flex: 1,
+                        padding: '10px 14px',
+                        border: '2px solid #e0e0e0',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        outline: 'none'
+                    }}
+                />
+                <button
+                    onClick={applyFilter}
+                    style={{
+                        background: '#007AFF',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                    }}
+                >
+                    🔍 Filter
+                </button>
+                {activeFilter && (
+                    <button
+                        onClick={clearFilter}
+                        style={{
+                            background: '#FF3B30',
+                            color: 'white',
+                            border: 'none',
+                            padding: '10px 20px',
+                            borderRadius: '8px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                        }}
+                    >
+                        ✕ Clear
+                    </button>
+                )}
+            </div>
+
+            {/* Active Filter Indicator */}
+            {activeFilter && (
+                <div style={{
+                    background: '#E3F2FD',
+                    border: '2px solid #2196F3',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}>
+                    <span style={{ fontSize: '18px' }}>📊</span>
+                    <span style={{ fontWeight: 'bold', color: '#1976D2' }}>
+                        Analyzing: {activeFilter}
+                    </span>
+                </div>
+            )}
 
             <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
                 <StatsCard 
@@ -133,7 +234,7 @@ export const Dashboard = () => {
                 <VisitChart />
             </div>
 
-            <UrlTester />
+            <UrlTester onUrlTested={handleUrlTested} />
         </div>
     );
 };

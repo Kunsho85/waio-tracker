@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 
-export const UrlTester = () => {
+interface UrlTesterProps {
+    onUrlTested?: (url: string) => void;
+}
+
+export const UrlTester = ({ onUrlTested }: UrlTesterProps) => {
     const [url, setUrl] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
@@ -16,6 +20,11 @@ export const UrlTester = () => {
             });
             const data = await response.json();
             setResult(data);
+            
+            // Notify parent component that URL was tested
+            if (onUrlTested && url) {
+                onUrlTested(url);
+            }
         } catch (e) {
             console.error(e);
         } finally {

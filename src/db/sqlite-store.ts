@@ -225,6 +225,77 @@ export class SQLiteStore {
         return result.count;
     }
 
+    // URL-specific queries
+    public getVisitsByUrl(url: string): Visit[] {
+        const stmt = this.db.prepare(`
+            SELECT 
+                id,
+                timestamp,
+                bot_name as botName,
+                bot_type as botType,
+                bot_company as botCompany,
+                url,
+                user_agent as userAgent,
+                ip,
+                response_time as responseTime
+            FROM visits
+            WHERE url LIKE ?
+            ORDER BY timestamp DESC
+        `);
+        return stmt.all(`%${url}%`) as Visit[];
+    }
+
+    public getUrlStats(url: string): {
+        totalVisits: number;
+        uniqueBots: number;
+        lastVisit: string | null;
+        botBreakdown: { botName: string; count: number }[];
+    } {
+        const visits = this.getVisitsByUrl(url);
+        const uniqueBots = new Set(visits.map(v => v.botName)).size;
+        const lastVisit = visits.length > 0 ? visits[0].timestamp : null;
+        
+        const stmt = this.db.prepare(`
+            SELECT bot_name as botName, COUNT(*) as count
+            FROM visits
+            WHERE url LIKE ?
+            GROUP BY bot_name
+            ORDER BY count DESC
+        `);
+        const botBreakdown = stmt.all(`%${url}%`) as { botName: string; count: number }[];
+        
+        return {
+            totalVisits: visits.length,
+            uniqueBots,
+            lastVisit,
+            botBreakdown
+        };
+    }
+
+    public getUrlTrend(url: string, days: number = 7): { date: string; visits: number }[] {
+        const stmt = this.db.prepare(`
+            SELECT 
+                DATE(timestamp) as date,
+                COUNT(*) as visits
+            FROM visits
+            WHERE url LIKE ? 
+              AND datetime(timestamp) >= datetime('now', '-' || ? || ' days')
+            GROUP BY date
+            ORDER BY date
+        `);
+        return stmt.all(`%${url}%`, days) as { date: string; visits: number }[];
+    }
+
+    public getUrlBotTypeCount(url: string, type: string): number {
+        const stmt = this.db.prepare(`
+            SELECT COUNT(*) as count
+            FROM visits
+            WHERE url LIKE ? AND bot_type = ?
+        `);
+        const result = stmt.get(`%${url}%`, type) as { count: number };
+        return result.count;
+    }
+
     public close() {
         this.db.close();
     }
