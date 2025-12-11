@@ -4,17 +4,53 @@ import { VisitChart } from './charts/VisitChart';
 import { UrlTester } from './UrlTester';
 import { LiveBotFeed } from './LiveBotFeed';
 
-export const Dashboard = () => {
-    const [visitCount, setVisitCount] = useState(0);
+interface DashboardStats {
+    totalVisits: number;
+    uniqueIPs: number;
+    avgResponseTime: number;
+    activeBots: number;
+    llmBots: number;
+    searchBots: number;
+    socialBots: number;
+    last24h: number;
+    trend: string;
+    topBot: string;
+}
 
+export const Dashboard = () => {
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch real stats from API
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const response = await fetch('/api/stats/dashboard');
+                const data = await response.json();
+                setStats(data);
+                setLoading(false);
+            } catch (error) {
+                console.error('Failed to fetch stats:', error);
+                setLoading(false);
+            }
+        };
+
+        fetchStats();
+        // Refresh stats every 30 seconds
+        const interval = setInterval(fetchStats, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // WebSocket for real-time updates
     useEffect(() => {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(`${protocol}//${window.location.host}/api/stream`);
 
         ws.onmessage = (event) => {
             const msg = JSON.parse(event.data);
-            if (msg.type === 'VISIT_UPDATE') {
-                setVisitCount(prev => prev + 1);
+            if (msg.type === 'VISIT_UPDATE' && stats) {
+                // Increment total visits on new visit
+                setStats(prev => prev ? { ...prev, totalVisits: prev.totalVisits + 1 } : null);
             }
         };
 
@@ -22,7 +58,23 @@ export const Dashboard = () => {
         ws.onerror = (error) => console.error('WebSocket error:', error);
 
         return () => ws.close();
-    }, []);
+    }, [stats]);
+
+    if (loading) {
+        return (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+                <p>Loading dashboard...</p>
+            </div>
+        );
+    }
+
+    if (!stats) {
+        return (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+                <p>Failed to load dashboard stats. Please refresh.</p>
+            </div>
+        );
+    }
 
     return (
         <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -46,9 +98,26 @@ export const Dashboard = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
-                <StatsCard title="Total Visits" value={1254 + visitCount} description="+12% from last week" />
-                <StatsCard title="Active Crawlers" value="5" description="Googlebot, GPTBot active" />
-                <StatsCard title="Avg Response" value="45ms" description="Optimized by Bun" />
+                <StatsCard 
+                    title="Total Visits" 
+                    value={stats.totalVisits.toLocaleString()} 
+                    description={`${stats.trend} from yesterday`} 
+                />
+                <StatsCard 
+                    title="LLM Bots" 
+                    value={stats.llmBots} 
+                    description={`${stats.topBot} most active`} 
+                />
+                <StatsCard 
+                    title="Active Bots (24h)" 
+                    value={stats.activeBots} 
+                    description={`${stats.last24h} visits today`} 
+                />
+                <StatsCard 
+                    title="Avg Response" 
+                    value={`${stats.avgResponseTime}ms`} 
+                    description={`${stats.uniqueIPs} unique IPs`} 
+                />
             </div>
 
             <div style={{ marginBottom: '30px' }}>

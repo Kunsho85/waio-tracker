@@ -132,6 +132,61 @@ const server = Bun.serve({
         }));
     }
 
+    // 1.9 Dashboard Stats API (Real Data)
+    if (url.pathname === "/api/stats/dashboard") {
+        try {
+            const totalVisits = db.getTotalVisits();
+            const uniqueIPs = db.getUniqueIPs();
+            const avgResponseTime = db.getAverageResponseTime();
+            const last24h = db.getLast24HoursCount();
+            
+            // Bot type counts
+            const llmBots = db.getBotTypeCount('llm');
+            const searchBots = db.getBotTypeCount('search_engine');
+            const socialBots = db.getBotTypeCount('social');
+            
+            // Calculate trend
+            const visitTrend = db.getVisitTrend(7);
+            let trendPercentage = 0;
+            if (visitTrend.length >= 2) {
+                const today = visitTrend[visitTrend.length - 1]?.visits || 0;
+                const yesterday = visitTrend[visitTrend.length - 2]?.visits || 1;
+                trendPercentage = Math.round(((today - yesterday) / yesterday) * 100);
+            }
+            
+            // Top bot
+            const topBots = db.getTopBots(1);
+            const topBot = topBots[0]?.botName || 'None';
+            
+            // Active bots (unique bots in last 24h)
+            const recentVisits = db.getVisitsLast24Hours();
+            const uniqueBots = new Set(recentVisits.map(v => v.botName)).size;
+            
+            const stats = {
+                totalVisits,
+                uniqueIPs,
+                avgResponseTime,
+                activeBots: uniqueBots,
+                llmBots,
+                searchBots,
+                socialBots,
+                last24h,
+                trend: trendPercentage > 0 ? `+${trendPercentage}%` : `${trendPercentage}%`,
+                topBot
+            };
+            
+            return addSecurityHeaders(new Response(JSON.stringify(stats), { 
+                headers: { "Content-Type": "application/json" } 
+            }));
+        } catch (error) {
+            console.error('Dashboard stats error:', error);
+            return addSecurityHeaders(new Response(JSON.stringify({ error: String(error) }), { 
+                status: 500,
+                headers: { "Content-Type": "application/json" } 
+            }));
+        }
+    }
+
     // 2. Serve built client bundle
     if (url.pathname === "/client.js") {
       try {

@@ -116,6 +116,115 @@ export class SQLiteStore {
         return result.count;
     }
 
+    // Time-based queries
+    public getVisitsLast24Hours(): Visit[] {
+        const stmt = this.db.prepare(`
+            SELECT *
+            FROM visits
+            WHERE datetime(timestamp) >= datetime('now', '-24 hours')
+            ORDER BY timestamp DESC
+        `);
+        return stmt.all() as Visit[];
+    }
+
+    public getVisitsLastWeek(): Visit[] {
+        const stmt = this.db.prepare(`
+            SELECT *
+            FROM visits
+            WHERE datetime(timestamp) >= datetime('now', '-7 days')
+            ORDER BY timestamp DESC
+        `);
+        return stmt.all() as Visit[];
+    }
+
+    // Analytics
+    public getBotTypeDistribution(): { type: string; count: number; percentage: number }[] {
+        const total = this.getTotalVisits();
+        const stmt = this.db.prepare(`
+            SELECT 
+                bot_type as type, 
+                COUNT(*) as count,
+                ROUND(COUNT(*) * 100.0 / ?, 2) as percentage
+            FROM visits
+            GROUP BY bot_type
+            ORDER BY count DESC
+        `);
+        return stmt.all(total) as { type: string; count: number; percentage: number }[];
+    }
+
+    public getTopBots(limit: number = 10): { botName: string; visits: number }[] {
+        const stmt = this.db.prepare(`
+            SELECT bot_name as botName, COUNT(*) as visits
+            FROM visits
+            GROUP BY bot_name
+            ORDER BY visits DESC
+            LIMIT ?
+        `);
+        return stmt.all(limit) as { botName: string; visits: number }[];
+    }
+
+    public getHourlyDistribution(): { hour: number; visits: number }[] {
+        const stmt = this.db.prepare(`
+            SELECT 
+                CAST(strftime('%H', timestamp) AS INTEGER) as hour,
+                COUNT(*) as visits
+            FROM visits
+            GROUP BY hour
+            ORDER BY hour
+        `);
+        return stmt.all() as { hour: number; visits: number }[];
+    }
+
+    public getAverageResponseTime(): number {
+        const stmt = this.db.prepare(`
+            SELECT AVG(response_time) as avg
+            FROM visits
+            WHERE response_time IS NOT NULL
+        `);
+        const result = stmt.get() as { avg: number | null };
+        return result.avg ? Math.round(result.avg) : 0;
+    }
+
+    public getUniqueIPs(): number {
+        const stmt = this.db.prepare(`SELECT COUNT(DISTINCT ip) as count FROM visits`);
+        const result = stmt.get() as { count: number };
+        return result.count;
+    }
+
+    // Trends
+    public getVisitTrend(days: number = 7): { date: string; visits: number }[] {
+        const stmt = this.db.prepare(`
+            SELECT 
+                DATE(timestamp) as date,
+                COUNT(*) as visits
+            FROM visits
+            WHERE datetime(timestamp) >= datetime('now', '-' || ? || ' days')
+            GROUP BY date
+            ORDER BY date
+        `);
+        return stmt.all(days) as { date: string; visits: number }[];
+    }
+
+    public getLast24HoursCount(): number {
+        const stmt = this.db.prepare(`
+            SELECT COUNT(*) as count
+            FROM visits
+            WHERE datetime(timestamp) >= datetime('now', '-24 hours')
+        `);
+        const result = stmt.get() as { count: number };
+        return result.count;
+    }
+
+    public getBotTypeCount(type: string): number {
+        const stmt = this.db.prepare(`
+            SELECT COUNT(*) as count
+            FROM visits
+            WHERE bot_type = ?
+        `);
+        const result = stmt.get(type) as { count: number };
+        return result.count;
+    }
+
     public close() {
         this.db.close();
     }
