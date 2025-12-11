@@ -1,0 +1,5 @@
+[phases.setup]
+nixPkgs = ['...', 'chromium']
+
+[phases.install]
+cmds = ['bun install', 'bun x playwright install --with-deps chromium']
